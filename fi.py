@@ -5,7 +5,7 @@ import numpy as np
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-PLOT = False
+PLOT = True
 
 #window = cv2.namedWindow('window', cv2.WINDOW_NORMAL)
 #cv2.resizeWindow('window', 1280, 720)
@@ -26,52 +26,109 @@ size = img.shape[0] * img.shape[1]
 idx = np.random.randint(0, size, 100000)
 sample = img_lab.reshape(size, 3)[idx, 1:3]
 
-N_CLUSTERS = 6
+n_clusters = 2
 
-kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0).fit(sample)
-
-pred = kmeans.predict(img_lab[:, :, 1:3].reshape(size, 2))
-
-i = 0
-j = 0
-size = 500
-for window in range(N_CLUSTERS):
-    cv2.namedWindow(str(window), cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(str(window), size, size)
-    cv2.moveWindow(str(window), i * (size + 100), j * (size + 100))
-    i += 1
-    if i > 2:
-        i = 0
-        j += 1
-
-kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-
-colors = kmeans.cluster_centers_
+kmeans = None
 
 all_contours = []
+all_contours_areas = []
 
-for i in range(N_CLUSTERS):
-    mask = (pred == i).reshape(img.shape[0], img.shape[1])
-    cluster_img = np.zeros((img.shape[0], img.shape[1]))
-    cluster_img[mask] = 255
-    cluster_img = cluster_img.astype('uint8')
-    cluster_img = cv2.morphologyEx(cluster_img, cv2.MORPH_CLOSE, kernel, iterations=5)
-    cluster_img = cv2.morphologyEx(cluster_img, cv2.MORPH_OPEN, kernel, iterations=10)
-    #cluster_img = cv2.merge((cluster_img, cluster_img, cluster_img))
+colors = []
 
-    im, contours, hierarchy = cv2.findContours(cluster_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+images = []
 
-    img_masked = cv2.bitwise_and(img, img, mask=cluster_img)
-    cv2.drawContours(img_masked, contours, -1, (0, 0, 255), thickness=9)
+outliers = []
 
-    cv2.imshow(str(i), img_masked)
+while len(outliers) == 0:
+    _kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(sample)
+
+    pred = _kmeans.predict(img_lab[:, :, 1:3].reshape(size, 2))
+
+    i = 0
+    j = 0
+    window_width = 300
+    for window in range(n_clusters):
+        cv2.namedWindow(str(window), cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(str(window), window_width, int(1.5 * window_width))
+        cv2.moveWindow(str(window), i * (window_width + 100), int(j * (1.5 * window_width + 100)))
+        i += 1
+        if i > 4:
+            i = 0
+            j += 1
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+
+    _all_contours = []
+    _all_contours_areas = []
+
+    #colors = np.array([np.hstack((np.ones((n_clusters, 1)) * 127, np.array(_kmeans.cluster_centers_)))]).astype('uint8')
+    #colors = cv2.cvtColor(colors, cv2.COLOR_LAB2BGR)
+
+    _colors = []
+
+    for i in range(n_clusters):
+        mask = (pred == i).reshape(img.shape[0], img.shape[1])
+        cluster_img = np.zeros((img.shape[0], img.shape[1]))
+        cluster_img[mask] = 255
+        cluster_img = cluster_img.astype('uint8')
+        cluster_img = cv2.morphologyEx(cluster_img, cv2.MORPH_CLOSE, kernel, iterations=5)
+        cluster_img = cv2.morphologyEx(cluster_img, cv2.MORPH_OPEN, kernel, iterations=10)
+        #cluster_img = cv2.merge((cluster_img, cluster_img, cluster_img))
+
+        im, contours, hierarchy = cv2.findContours(cluster_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        img_masked = cv2.bitwise_and(img, img, mask=cluster_img)
+        #cv2.drawContours(img_masked, contours, -1, (0, 0, 255), thickness=9)
+
+        _all_contours.append(contours)
+        _all_contours_areas.append([cv2.contourArea(contour) for contour in contours])
+
+        contour = contours[0]
+        M = cv2.moments(contour)
+        cx = int(M['m10'] / M['m00'])
+        cy = int(M['m01'] / M['m00'])
+        _colors.append(tuple(map(int, img[cy, cx, :])))
+
+        cv2.imshow(str(i), img_masked)
+
+    print('areas: ' + str(_all_contours_areas))
+    arr = np.array([item for lst in sorted(_all_contours_areas, key=lambda x: sum(x), reverse=True)[1:] for item in lst])
+    mean = np.mean(arr, axis=0)
+    std = np.std(arr, axis=0)
+    print('mean: ' + str(mean) + ', std: ' + str(std))
+    outliers = [x for x in arr if x < mean - 3.5 * std or x > mean + 3.5 * std]
+
+    print('outliers: ' + str(outliers))
+
+    if len(outliers) == 0:
+        kmeans = _kmeans
+
+        all_contours = _all_contours
+        all_contours_areas = _all_contours_areas
+
+        colors = _colors
+
+    n_clusters += 1
+
+    cv2.waitKey(0)
+
+print(_colors)
+
+img_contours = img.copy()
+contours = all_contours[1:]
+colors = colors[1:]
+for i in range(len(contours)):
+    cv2.drawContours(img_contours, contours[i], -1, colors[i], thickness=9)
+cv2.namedWindow('window', cv2.WINDOW_NORMAL)
+cv2.resizeWindow('window', 1280, 720)
+cv2.imshow('window', img_contours)
 cv2.waitKey(0)
 
 
 if PLOT:
     x = sample[:, 0]
     y = sample[:, 1]
-    c = img.reshape(size, 3)[idx, :] / 255.0
+    c = img_nol.reshape(size, 3)[idx, :] / 255.0
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
