@@ -1,16 +1,21 @@
+import os
 import cv2
 import matplotlib
 from sklearn.cluster import KMeans
 import numpy as np
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import pickle
 
 PLOT = True
+OVERWRITE = False
+
+PATH = 'test/IMG_20180417_162819.jpg'
+
+img = cv2.imread('test/IMG_20180417_162819.jpg')
 
 #window = cv2.namedWindow('window', cv2.WINDOW_NORMAL)
 #cv2.resizeWindow('window', 1280, 720)
-
-img = cv2.imread('test/IMG_20180417_162819.jpg')
 
 img = cv2.resize(img, (1280, int(1280 / (img.shape[1] / img.shape[0]))))
 
@@ -35,7 +40,7 @@ all_contours_areas = []
 
 colors = []
 
-images = []
+masks = []
 
 outliers = []
 
@@ -66,6 +71,8 @@ while len(outliers) == 0:
 
     _colors = []
 
+    _masks = []
+
     for i in range(n_clusters):
         mask = (pred == i).reshape(img.shape[0], img.shape[1])
         cluster_img = np.zeros((img.shape[0], img.shape[1]))
@@ -80,14 +87,15 @@ while len(outliers) == 0:
         img_masked = cv2.bitwise_and(img, img, mask=cluster_img)
         #cv2.drawContours(img_masked, contours, -1, (0, 0, 255), thickness=9)
 
+        avg_color = cv2.mean(img, cluster_img)[0:3]
+        #img_simple = np.zeros(img.shape, np.uint8)
+        #img_simple[cluster_img] = avg_color
+        _masks.append(cluster_img)
+
         _all_contours.append(contours)
         _all_contours_areas.append([cv2.contourArea(contour) for contour in contours])
 
-        contour = contours[0]
-        M = cv2.moments(contour)
-        cx = int(M['m10'] / M['m00'])
-        cy = int(M['m01'] / M['m00'])
-        _colors.append(tuple(map(int, img[cy, cx, :])))
+        _colors.append(avg_color)
 
         cv2.imshow(str(i), img_masked)
 
@@ -108,20 +116,38 @@ while len(outliers) == 0:
 
         colors = _colors
 
+        masks = _masks
+
     n_clusters += 1
 
-    cv2.waitKey(0)
-
-print(_colors)
+    #cv2.waitKey(0)
 
 img_contours = img.copy()
+image_simple = np.ones(img.shape, np.uint8) * 255
 contours = all_contours[1:]
 colors = colors[1:]
+masks = masks[1:]
 for i in range(len(contours)):
     cv2.drawContours(img_contours, contours[i], -1, colors[i], thickness=9)
+
+    color_img = np.zeros(img.shape, np.uint8)
+    color_img[:, :] = np.array(list(colors[i]), np.uint8)
+    color_img = cv2.bitwise_and(color_img, color_img, mask=masks[i])
+    mask_inv = cv2.bitwise_not(masks[i])
+    image_simple = cv2.bitwise_and(image_simple, image_simple, mask=mask_inv)
+    image_simple = cv2.add(image_simple, color_img)
+
+    cv2.drawContours(image_simple, contours[i], -1, (0, 0, 0), thickness=6)
+    for contour in contours[i]:
+        M = cv2.moments(contour)
+        cx = int(M['m10'] / M['m00'])
+        cy = int(M['m01'] / M['m00'])
+
+        cv2.putText(image_simple, str(i + 1), (cx - 30, cy + 30), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 6, cv2.LINE_AA)
+
 cv2.namedWindow('window', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('window', 1280, 720)
-cv2.imshow('window', img_contours)
+cv2.imshow('window', np.hstack((img, image_simple)))
 cv2.waitKey(0)
 
 
