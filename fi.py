@@ -8,19 +8,16 @@ import matplotlib.pyplot as plt
 import pickle
 
 PLOT = True
-OVERWRITE = False
 
-PATH = 'test/IMG_20180417_162819.jpg'
+img = cv2.imread('test/IMG_20180417_162902.jpg')
 
-img = cv2.imread('test/IMG_20180417_162819.jpg')
-
-#window = cv2.namedWindow('window', cv2.WINDOW_NORMAL)
-#cv2.resizeWindow('window', 1280, 720)
+cv2.namedWindow('window', cv2.WINDOW_NORMAL)
+cv2.resizeWindow('window', 1280, 720)
 
 img = cv2.resize(img, (1280, int(1280 / (img.shape[1] / img.shape[0]))))
 
 img_lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-img_lab[:, :, 0] = 127
+img_lab[:, :, 0] = 0
 
 img_nol = cv2.cvtColor(img_lab, cv2.COLOR_LAB2BGR)
 
@@ -30,6 +27,8 @@ img_nol = cv2.cvtColor(img_lab, cv2.COLOR_LAB2BGR)
 size = img.shape[0] * img.shape[1]
 idx = np.random.randint(0, size, 100000)
 sample = img_lab.reshape(size, 3)[idx, 1:3]
+cv2.imshow('window', img_nol)
+cv2.waitKey(0)
 
 n_clusters = 2
 
@@ -43,6 +42,9 @@ colors = []
 masks = []
 
 outliers = []
+
+mean = 0
+std = 0
 
 while len(outliers) == 0:
     _kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(sample)
@@ -100,9 +102,15 @@ while len(outliers) == 0:
         cv2.imshow(str(i), img_masked)
 
     print('areas: ' + str(_all_contours_areas))
-    arr = np.array([item for lst in sorted(_all_contours_areas, key=lambda x: sum(x), reverse=True)[1:] for item in lst])
-    mean = np.mean(arr, axis=0)
-    std = np.std(arr, axis=0)
+    idxs = [x[0] for x in sorted(enumerate(_all_contours_areas), key=lambda x: sum(x[1]), reverse=True)]
+    _all_contours_areas = [_all_contours_areas[i] for i in idxs]
+    _all_contours = [_all_contours[i] for i in idxs]
+    _colors = [_colors[i] for i in idxs]
+    _masks = [_masks[i] for i in idxs]
+    arr = np.array([item for lst in _all_contours_areas[1:] for item in lst])
+    if mean == 0:
+        mean = np.mean(arr, axis=0)
+        std = np.std(arr, axis=0)
     print('mean: ' + str(mean) + ', std: ' + str(std))
     outliers = [x for x in arr if x < mean - 3.5 * std or x > mean + 3.5 * std]
 
@@ -118,6 +126,9 @@ while len(outliers) == 0:
 
         masks = _masks
 
+        #mean = np.mean(arr, axis=0)
+        #std = np.std(arr, axis=0)
+
     n_clusters += 1
 
     #cv2.waitKey(0)
@@ -127,6 +138,7 @@ image_simple = np.ones(img.shape, np.uint8) * 255
 contours = all_contours[1:]
 colors = colors[1:]
 masks = masks[1:]
+objects = {}
 for i in range(len(contours)):
     cv2.drawContours(img_contours, contours[i], -1, colors[i], thickness=9)
 
@@ -137,13 +149,15 @@ for i in range(len(contours)):
     image_simple = cv2.bitwise_and(image_simple, image_simple, mask=mask_inv)
     image_simple = cv2.add(image_simple, color_img)
 
-    cv2.drawContours(image_simple, contours[i], -1, (0, 0, 0), thickness=6)
-    for contour in contours[i]:
-        M = cv2.moments(contour)
+    cv2.drawContours(image_simple, contours[i], -1, (0, 0, 0), thickness=7)
+    for j in range(len(contours[i])):
+        M = cv2.moments(contours[i][j])
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
 
-        cv2.putText(image_simple, str(i + 1), (cx - 30, cy + 30), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 6, cv2.LINE_AA)
+        cv2.putText(image_simple, str(j + 1), (cx - 30, cy + 30), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 7, cv2.LINE_AA)
+    objects.update({i: len(contours[i])})
+print(objects)
 
 cv2.namedWindow('window', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('window', 1280, 720)
