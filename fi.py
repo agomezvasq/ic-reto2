@@ -204,7 +204,8 @@ plt.show()
 if PLOT:
     x = sample[:, 0]
     y = sample[:, 1]
-    c = img.reshape(size, 3)[idx, :] / 255.0
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    c = img_rgb.reshape(size, 3)[idx, :] / 255.0
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
