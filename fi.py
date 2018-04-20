@@ -1,3 +1,5 @@
+#Andres Gomez
+
 import os
 import cv2
 import matplotlib
@@ -29,6 +31,7 @@ size = img.shape[0] * img.shape[1]
 idx = np.random.randint(0, size, 100000)
 sample = img_lab.reshape(size, 3)[idx, 1:3]
 cv2.imshow('window', img_nol)
+cv2.imwrite('img_nol.png', img_nol)
 cv2.waitKey(0)
 
 n_clusters = 2
@@ -83,7 +86,8 @@ while len(outliers) == 0:
         cluster_img = cluster_img.astype('uint8')
         cluster_img = cv2.morphologyEx(cluster_img, cv2.MORPH_CLOSE, kernel, iterations=5)
         cluster_img = cv2.morphologyEx(cluster_img, cv2.MORPH_OPEN, kernel, iterations=10)
-        #cluster_img = cv2.merge((cluster_img, cluster_img, cluster_img))
+        save_cluster_img = cv2.merge((cluster_img, cluster_img, cluster_img))
+        #cv2.imwrite('cluster' + str(i) + '.png', save_cluster_img)
 
         im, contours, hierarchy = cv2.findContours(cluster_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -144,8 +148,9 @@ objects = {}
 for i in range(len(contours)):
     cv2.drawContours(img_contours, contours[i], -1, colors[i], thickness=9)
 
+    avg_color = cv2.mean(img, masks[i])[0:3]
     color_img = np.zeros(img.shape, np.uint8)
-    color_img[:, :] = np.array(list(colors[i]), np.uint8)
+    color_img[:, :] = np.array(list(avg_color), np.uint8)
     color_img = cv2.bitwise_and(color_img, color_img, mask=masks[i])
     mask_inv = cv2.bitwise_not(masks[i])
     image_simple = cv2.bitwise_and(image_simple, image_simple, mask=mask_inv)
