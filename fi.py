@@ -1,15 +1,16 @@
 import os
 import cv2
 import matplotlib
+from matplotlib.lines import Line2D
 from sklearn.cluster import KMeans
 import numpy as np
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-import pickle
+import math
 
 PLOT = True
 
-img = cv2.imread('test/IMG_20180417_162902.jpg')
+img = cv2.imread('test/IMG_20180417_162632.jpg')
 
 cv2.namedWindow('window', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('window', 1280, 720)
@@ -138,6 +139,7 @@ image_simple = np.ones(img.shape, np.uint8) * 255
 contours = all_contours[1:]
 colors = colors[1:]
 masks = masks[1:]
+font_size = math.sqrt(mean / math.pi) / 18
 objects = {}
 for i in range(len(contours)):
     cv2.drawContours(img_contours, contours[i], -1, colors[i], thickness=9)
@@ -149,26 +151,55 @@ for i in range(len(contours)):
     image_simple = cv2.bitwise_and(image_simple, image_simple, mask=mask_inv)
     image_simple = cv2.add(image_simple, color_img)
 
-    cv2.drawContours(image_simple, contours[i], -1, (0, 0, 0), thickness=7)
+    cv2.drawContours(image_simple, contours[i], -1, (0, 0, 0), thickness=6)
     for j in range(len(contours[i])):
         M = cv2.moments(contours[i][j])
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
 
-        cv2.putText(image_simple, str(j + 1), (cx - 30, cy + 30), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 7, cv2.LINE_AA)
+        cv2.putText(image_simple, str(j + 1), (cx - int(font_size * 10), cy + int(font_size * 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), 7, cv2.LINE_AA)
     objects.update({i: len(contours[i])})
 print(objects)
 
-cv2.namedWindow('window', cv2.WINDOW_NORMAL)
-cv2.resizeWindow('window', 1280, 720)
-cv2.imshow('window', np.hstack((img, image_simple)))
-cv2.waitKey(0)
+
+show_img = np.hstack((img, image_simple))
+show_img = cv2.cvtColor(show_img, cv2.COLOR_BGR2RGB)
+fig = plt.figure()
+ax = plt.subplot(111)
+ax.imshow(show_img)
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+circles = []
+for i in range(len(contours)):
+    color = colors[i]
+
+    line = Line2D(range(1),
+                  range(1),
+                  color="white",
+                  marker='o',
+                  markerfacecolor=list(np.array([color[2], color[1], color[0]]) / 255),
+                  markeredgecolor='black',
+                  markersize=12)
+    circles.append(line)
+ax.axis('off')
+ax.legend(tuple(circles),
+          tuple([str(objects[i]) for i in range(len(contours))]),
+          loc='center left',
+          bbox_to_anchor=(1, 0.5))
+plt.show()
+#cv2.namedWindow('window', cv2.WINDOW_NORMAL)
+#cv2.resizeWindow('window', 1280, 720)
+#cv2.imshow('window', np.hstack((img, image_simple)))
+#cv2.waitKey(0)
+
+
 
 
 if PLOT:
     x = sample[:, 0]
     y = sample[:, 1]
-    c = img_nol.reshape(size, 3)[idx, :] / 255.0
+    c = img.reshape(size, 3)[idx, :] / 255.0
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
