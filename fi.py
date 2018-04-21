@@ -118,6 +118,11 @@ while len(outliers) == 0:
         std = np.std(arr, axis=0)
     print('mean: ' + str(mean) + ', std: ' + str(std))
     outliers = [x for x in arr if x < mean - 3.5 * std or x > mean + 3.5 * std]
+    if len(arr) == 1:
+        std = 1000
+    if len(arr) == 0:
+        mean = 0
+        std = 0
 
     print('outliers: ' + str(outliers))
 
